@@ -40,6 +40,10 @@ local manifest = {
       resource_type = "model", name = "helper", package_name = "dbt_utils",
       original_file_path = "models/helper.sql",
     },
+    ["test.my_proj.not_null_orders_id"] = {
+      resource_type = "test", name = "not_null_orders_id", package_name = "my_proj",
+      original_file_path = "models/marts/schema.yml",
+    },
   },
   sources = {
     ["source.my_proj.raw.users"] = {
@@ -52,6 +56,17 @@ local manifest = {
       name = "my_macro", package_name = "my_proj",
       original_file_path = "macros/my_macro.sql",
     },
+  },
+  parent_map = {
+    ["model.my_proj.orders"] = { "model.my_proj.stg_users", "source.my_proj.raw.users" },
+    ["model.my_proj.stg_users"] = { "source.my_proj.raw.users" },
+    ["source.my_proj.raw.users"] = {},
+    ["test.my_proj.not_null_orders_id"] = { "model.my_proj.orders" },
+  },
+  child_map = {
+    ["source.my_proj.raw.users"] = { "model.my_proj.orders", "model.my_proj.stg_users" },
+    ["model.my_proj.stg_users"] = { "model.my_proj.orders" },
+    ["model.my_proj.orders"] = { "test.my_proj.not_null_orders_id" },
   },
 }
 vim.fn.mkdir(root .. "/target", "p")
@@ -81,4 +96,31 @@ local mac = m.get_macro("my_macro", nil, root .. "/models/marts/orders.sql")
 assert(mac, "macro not found")
 assert(mac.path == root .. "/macros/my_macro.sql")
 
-print("manifest_spec: 5 assertions passed")
+-- adjacency: parent_map / child_map
+local adj = m.adjacency(root .. "/models/marts/orders.sql")
+assert(adj, "adjacency nil")
+assert(adj.parent_map["model.my_proj.orders"], "no parents for orders")
+assert(adj.child_map["source.my_proj.raw.users"], "no children for source")
+assert(adj.nodes_by_uid["model.my_proj.orders"], "orders missing from nodes_by_uid")
+assert(adj.nodes_by_uid["source.my_proj.raw.users"], "source missing from nodes_by_uid")
+assert(adj.nodes_by_uid["source.my_proj.raw.users"].resource_type == "source",
+  "source resource_type wrong")
+
+-- parents_of returns model + source entries, no test nodes
+local parents = m.parents_of("model.my_proj.orders", root .. "/models/marts/orders.sql")
+assert(#parents == 2, "expected 2 parents, got " .. #parents)
+local saw_stg, saw_src = false, false
+for _, p in ipairs(parents) do
+  if p.unique_id == "model.my_proj.stg_users" then saw_stg = true end
+  if p.unique_id == "source.my_proj.raw.users" then saw_src = true end
+end
+assert(saw_stg and saw_src, "missing expected parent")
+
+-- children_of skips test nodes (not in nodes_by_uid)
+local children = m.children_of("model.my_proj.orders", root .. "/models/marts/orders.sql")
+assert(#children == 0, "expected 0 non-test children for orders, got " .. #children)
+
+local src_children = m.children_of("source.my_proj.raw.users", root .. "/models/marts/orders.sql")
+assert(#src_children == 2, "expected 2 children for source, got " .. #src_children)
+
+print("manifest_spec: 13 assertions passed")

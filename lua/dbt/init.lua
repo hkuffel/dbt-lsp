@@ -3,8 +3,8 @@ local M = {}
 local defaults = {
   -- buffer-local keymap for GoToDefinition. Set to false to disable.
   goto_definition_keymap = "gd",
-  -- global keymap to open Constellation. Set to false to disable.
-  constellation_keymap = "<leader>dl",
+  -- global keymap to open the lineage picker. Set to false to disable.
+  lineage_keymap = "<leader>dl",
 }
 
 M.config = vim.deepcopy(defaults)
@@ -39,10 +39,10 @@ function M.setup(opts)
     end,
   })
 
-  if M.config.constellation_keymap then
-    vim.keymap.set("n", M.config.constellation_keymap, function()
-      require("dbt.constellation").open()
-    end, { desc = "dbt: open Constellation overlay" })
+  if M.config.lineage_keymap then
+    vim.keymap.set("n", M.config.lineage_keymap, function()
+      require("dbt.lineage").open()
+    end, { desc = "dbt: open lineage picker" })
   end
 end
 
