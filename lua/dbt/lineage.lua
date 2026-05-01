@@ -178,12 +178,33 @@ function M.open(opts)
     adj = adj,
     expanded = {},
     direction = opts.direction or "both",
+    cursor_target = { uid = focal.unique_id, direction = "focal" },
   }
 
   Snacks.picker.pick({
     source = "dbt_lineage",
-    finder = function()
-      return build_items(state)
+    finder = function(_, ctx)
+      local items = build_items(state)
+      local target_idx
+      for i, item in ipairs(items) do
+        if item.unique_id == state.cursor_target.uid
+          and item.direction == state.cursor_target.direction then
+          target_idx = i
+          break
+        end
+      end
+      if not target_idx then
+        for i, item in ipairs(items) do
+          if item.direction == "focal" then
+            target_idx = i
+            break
+          end
+        end
+      end
+      if target_idx and ctx and ctx.picker and ctx.picker.list then
+        ctx.picker.list:set_target(target_idx, nil, { force = true })
+      end
+      return items
     end,
     format = format_item,
     preview = "file",
@@ -210,18 +231,22 @@ function M.open(opts)
         if not item.has_more and not item.expanded then return end
         local key = item.direction .. ":" .. item.unique_id
         state.expanded[key] = not state.expanded[key] or nil
+        state.cursor_target = { uid = item.unique_id, direction = item.direction }
         picker:find({ refresh = true })
       end,
       lineage_only_upstream = function(picker)
         state.direction = "up"
+        state.cursor_target = { uid = state.focal.unique_id, direction = "focal" }
         picker:find({ refresh = true })
       end,
       lineage_only_downstream = function(picker)
         state.direction = "down"
+        state.cursor_target = { uid = state.focal.unique_id, direction = "focal" }
         picker:find({ refresh = true })
       end,
       lineage_both = function(picker)
         state.direction = "both"
+        state.cursor_target = { uid = state.focal.unique_id, direction = "focal" }
         picker:find({ refresh = true })
       end,
     },
